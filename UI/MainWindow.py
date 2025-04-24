@@ -31,7 +31,7 @@ class MainWindow(QMainWindow):
 
         # Start with chill state, then activate after 7 seconds
         self.opengl_widget.chill()
-        QTimer.singleShot(10000, self.opengl_widget.active)
+        QTimer.singleShot(10000, self.start_active_and_algorithm)
 
     def handle_algorithm_result(self, result):
         print(f"Algorithm result: {result}")
@@ -40,6 +40,10 @@ class MainWindow(QMainWindow):
         self.logic_thread.stop()
         self.logic_thread.wait()
         event.accept()
+
+    def start_active_and_algorithm(self):
+        self.opengl_widget.active()
+        QTimer.singleShot(5000, self.logic_thread.run_algorithm)
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)

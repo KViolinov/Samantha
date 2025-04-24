@@ -5,6 +5,11 @@ import pygame
 import io
 import os
 import google.generativeai as genai
+import random
+import logging
+
+# Set up logging to catch errors
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 
 class LogicThread(QThread):
     update_signal = pyqtSignal(str)
@@ -16,7 +21,6 @@ class LogicThread(QThread):
         self.running = True
         self.is_playing = False
         self.wake_word_detected = False
-        self.listening_for_command = False
         self.model_answering = False
         pygame.mixer.init()
 
@@ -25,30 +29,42 @@ class LogicThread(QThread):
         self.client = ElevenLabs(api_key=elevenlabs_api_key)
 
         # Gemini setup
-        gemini_api_key = "AIzaSyBzMQutGJnduWwKcTrmvAvP_QiTj8zaJ3I"  # Replace with your Gemini API key
+        gemini_api_key = "AIzaSyBzMQutGJnduWwKcTrmvAvP_QiTj8zaJ3I"
         genai.configure(api_key=gemini_api_key)
         self.gemini_model = genai.GenerativeModel('gemini-1.5-flash')
 
         self.recognizer = sr.Recognizer()
         self.current_model = "Samantha"
+        self.jarvis_responses = [
+            "Hello, I'm Samantha, ready to assist!",
+            "Samantha online, what's up?",
+            "Hey there, Samantha at your service!"
+        ]
         self.trigger_algorithm.connect(self.run_algorithm_slot)
         self.play_startup_sound_signal.connect(self.play_startup_sound_slot)
         self.startup_sound_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "Sounds", "mac_os_startup.wav")
 
     def run(self):
-        while self.running:
-            if not self.is_playing:
-                if self.listening_for_command:
-                    # Listen for the actual command after wake word
-                    result = self.record_text()
-                    if result:
-                        self.process_command(result)
-                elif not self.wake_word_detected:
-                    # Listen for wake word
-                    result = self.record_text()
-                    if result:
-                        self.process_speech(result)
-            self.msleep(100)
+        try:
+            while self.running:
+                if not self.is_playing:
+                    if not self.wake_word_detected:
+                        # Listen for wake word
+                        self.update_signal.emit("Listening for wake word...")
+                        result = self.record_text()
+                        if result:
+                            self.process_wake_word(result)
+                    else:
+                        # Listen for command
+                        self.update_signal.emit("Listening for command...")
+                        result = self.record_text()
+                        if result:
+                            self.process_command(result)
+                self.msleep(100)
+        except Exception as e:
+            logging.error(f"Error in run loop: {str(e)}")
+            self.update_signal.emit(f"Error in run loop: {str(e)}")
+            raise
 
     def play_startup_sound(self):
         self.play_startup_sound_signal.emit()
@@ -65,97 +81,102 @@ class LogicThread(QThread):
             sound = pygame.mixer.Sound(self.startup_sound_path)
             sound.play()
             duration_ms = int(sound.get_length() * 1000)
-            QTimer.singleShot(duration_ms, self.reset_playing)
+            QTimer.singleShot(duration_ms + 500, self.reset_playing)
             self.update_signal.emit("Startup sound played")
         except Exception as e:
+            logging.error(f"Startup sound error: {str(e)}")
             self.update_signal.emit(f"Startup sound playback failed: {str(e)}")
             self.is_playing = False
 
     def record_text(self):
-        """Listen for speech and return the recognized text."""
-        try:
-            with sr.Microphone() as source:
-                self.recognizer.adjust_for_ambient_noise(source, duration=0.2)
-                audio = self.recognizer.listen(source)
-                text = self.recognizer.recognize_google(audio, language="bg-BG")
-                self.update_signal.emit(f"You said: {text}")
-                return text.lower()
-        except sr.RequestError as e:
-            self.update_signal.emit(f"API Request Error: {e}")
-            return None
-        except sr.UnknownValueError:
-            self.update_signal.emit("Sorry, I didn't catch that. Please try again.")
-            return None
+        """Listen for speech and return the recognized text with retry logic."""
+        max_attempts = 3
+        for attempt in range(max_attempts):
+            try:
+                with sr.Microphone() as source:
+                    self.recognizer.adjust_for_ambient_noise(source, duration=0.2)  # Reduced duration to match previous project
+                    audio = self.recognizer.listen(source, timeout=5, phrase_time_limit=10)
+                    text = self.recognizer.recognize_google(audio, language="bg-BG")
+                    self.update_signal.emit(f"You said: {text}")
+                    return text.lower()
+            except sr.RequestError as e:
+                self.update_signal.emit(f"API Request Error: {e}")
+                logging.error(f"Speech recognition API error: {str(e)}")
+                return None
+            except sr.UnknownValueError:
+                self.update_signal.emit("Sorry, I didn't catch that. Please try again.")
+                if attempt == max_attempts - 1:
+                    return None
+                self.msleep(500)
+            except sr.WaitTimeoutError:
+                self.update_signal.emit("Listening timed out. Please speak again.")
+                if attempt == max_attempts - 1:
+                    return None
+                self.msleep(500)
+            except Exception as e:
+                logging.error(f"Unexpected error in record_text: {str(e)}")
+                self.update_signal.emit(f"Unexpected error in record_text: {str(e)}")
+                return None
 
-    def process_speech(self, user_input):
+    def process_wake_word(self, user_input):
         """Process recognized speech for wake words."""
         if not user_input:
             return
 
-        wake_words = ["саманта", "Саманта", "джервис", "jarvis", "черви"]
-        if any(wake_word in user_input for wake_word in wake_words):
-            self.wake_word_detected = True
-            self.listening_for_command = True
-            # Play a short response to indicate listening
-            self.play_listening_response()
-            return
-
-        elif user_input == "exit":
-            self.update_signal.emit("Exiting chatbot")
-            self.stop()
+        try:
+            wake_words = ["саманта", "Саманта", "джервис", "jarvis", "черви"]
+            if any(wake_word in user_input for wake_word in wake_words):
+                self.wake_word_detected = True
+                self.model_answering = True
+                self.play_confirmation_sound()
+                response = random.choice(self.jarvis_responses)
+                self.play_audio(response)
+                self.model_answering = False
+                self.update_signal.emit("Wake word detected!")
+            elif user_input == "излез":
+                self.update_signal.emit("Exiting chatbot")
+                self.play_audio("Goodbye!")
+                self.stop()
+        except Exception as e:
+            logging.error(f"Error in process_wake_word: {str(e)}")
+            self.update_signal.emit(f"Error in process_wake_word: {str(e)}")
+            self.wake_word_detected = False
 
     def process_command(self, user_input):
         """Process the user's command after wake word."""
-        if user_input == "exit":
-            self.update_signal.emit("Exiting chatbot")
-            self.stop()
-            return
-
-        # Send the command to Gemini and play the response
-        self.play_samantha_response(user_input)
-        self.listening_for_command = False
-        self.wake_word_detected = False
-
-    def play_listening_response(self):
-        """Play a short response to indicate Samantha is listening."""
-        if self.is_playing:
-            self.update_signal.emit("Audio already playing")
+        if not user_input:
+            self.wake_word_detected = False
             return
 
         try:
-            self.is_playing = True
-            audio_generator = self.client.generate(
-                text="I'm listening, go ahead.",
-                voice="Samantha",
-                stream=False
-            )
-            audio_bytes = b"".join(audio_generator) if hasattr(audio_generator, '__iter__') else audio_generator
-            audio_stream = io.BytesIO(audio_bytes)
-            sound = pygame.mixer.Sound(audio_stream)
-            sound.play()
-            duration_ms = int(sound.get_length() * 1000)
-            QTimer.singleShot(duration_ms, self.reset_playing)
-            self.update_signal.emit("Listening response played")
-        except Exception as e:
-            self.update_signal.emit(f"Listening response failed: {str(e)}")
-            self.is_playing = False
+            if user_input == "излез":
+                self.update_signal.emit("Exiting chatbot")
+                self.play_audio("Goodbye!")
+                self.stop()
+                return
 
-    def play_samantha_response(self, user_input):
-        if self.is_playing:
-            self.update_signal.emit("Audio already playing")
-            return
-
-        try:
             self.is_playing = True
             self.model_answering = True
-            # Send user input to Gemini 1.5 Flash
             prompt = f"You are Samantha, a helpful AI assistant. Respond to the user in a friendly and conversational tone. User input: {user_input}"
             response = self.gemini_model.generate_content(prompt)
             response_text = response.text
+            self.update_signal.emit(f"Gemini response: {response_text}")
+            self.play_audio(response_text)
+            self.update_signal.emit("Samantha response played")
+        except Exception as e:
+            logging.error(f"Error in process_command: {str(e)}")
+            self.update_signal.emit(f"Audio playback failed: {str(e)}")
+        finally:
+            self.is_playing = False
+            self.model_answering = False
+            self.wake_word_detected = False
 
-            # Use ElevenLabs to convert Gemini response to speech
+    def play_confirmation_sound(self):
+        """Play a confirmation sound after wake word detection."""
+        try:
+            self.is_playing = True
             audio_generator = self.client.generate(
-                text=response_text,
+                text="Beep",
                 voice="Samantha",
                 stream=False
             )
@@ -164,19 +185,45 @@ class LogicThread(QThread):
             sound = pygame.mixer.Sound(audio_stream)
             sound.play()
             duration_ms = int(sound.get_length() * 1000)
-            QTimer.singleShot(duration_ms, self.reset_playing)
-            self.update_signal.emit("Samantha response played")
+            QTimer.singleShot(duration_ms + 1000, self.reset_playing)  # Increased delay
         except Exception as e:
+            logging.error(f"Confirmation sound error: {str(e)}")
+            self.update_signal.emit(f"Confirmation sound failed: {str(e)}")
+            self.is_playing = False
+
+    def play_audio(self, text):
+        """Play audio for a given text using ElevenLabs."""
+        try:
+            self.is_playing = True
+            audio_generator = self.client.generate(
+                text=text,
+                voice="Samantha",
+                stream=False
+            )
+            audio_bytes = b"".join(audio_generator) if hasattr(audio_generator, '__iter__') else audio_generator
+            audio_stream = io.BytesIO(audio_bytes)
+            sound = pygame.mixer.Sound(audio_stream)
+            sound.play()
+            duration_ms = int(sound.get_length() * 1000)
+            QTimer.singleShot(duration_ms + 2000, self.reset_playing)  # Increased delay to 2 seconds
+        except Exception as e:
+            logging.error(f"Audio playback error: {str(e)}")
             self.update_signal.emit(f"Audio playback failed: {str(e)}")
             self.is_playing = False
-        finally:
-            self.model_answering = False
 
     def run_algorithm(self):
         """Manually trigger Samantha to listen for a command."""
-        self.wake_word_detected = True
-        self.listening_for_command = True
-        self.play_listening_response()
+        try:
+            self.wake_word_detected = True
+            self.model_answering = True
+            self.play_confirmation_sound()
+            response = random.choice(self.jarvis_responses)
+            self.play_audio(response)
+            self.model_answering = False
+            self.update_signal.emit("Wake word detected!")
+        except Exception as e:
+            logging.error(f"Error in run_algorithm: {str(e)}")
+            self.update_signal.emit(f"Error in run_algorithm: {str(e)}")
 
     def run_algorithm_slot(self):
         self.run_algorithm()

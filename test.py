@@ -11,6 +11,8 @@ from elevenlabs import ElevenLabs, play
 import os
 import google.generativeai as genai
 
+from Logic.API_keys import *
+
 # Samantha UI and Utility Classes
 class PlaneGeometry:
     def __init__(self, width, height):
@@ -166,11 +168,11 @@ class SamanthaInterface:
     def __init__(self):
         pygame.init()
         pygame.mixer.init()
-        self.client = ElevenLabs(api_key="sk_0dfe95fad3b8b17af02ce8d21ecf0fb1c5c63e97b2688707")
+        self.client = ElevenLabs(api_key=ElevenLabsAPI)
         self.r = sr.Recognizer()
 
         # Gemini Setup
-        os.environ["GEMINI_API_KEY"] = "AIzaSyBzMQutGJnduWwKcTrmvAvP_QiTj8zaJ3I"
+        os.environ["GEMINI_API_KEY"] = GeminiAPI
         genai.configure(api_key=os.environ["GEMINI_API_KEY"])
         self.model = genai.GenerativeModel(model_name="gemini-1.5-flash")
 

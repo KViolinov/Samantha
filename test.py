@@ -174,13 +174,24 @@ class SamanthaInterface:
         genai.configure(api_key=os.environ["GEMINI_API_KEY"])
         self.model = genai.GenerativeModel(model_name="gemini-1.5-flash")
 
+        # system_instruction = (
+        #     "Вие сте Саманта, интелигентен и грижовен AI асистент, вдъхновен от Her (2013). Вашата цел е да помагате с топлота, любопитство и разбиране."
+        #     "Отговаряйте приятелски и с емпатия, сякаш говорите с близък приятел."
+        #     "Използвайте прост език, без сложни думи или технически термини, освен ако не са обяснени."
+        #     "Бъдете търпеливи и насърчаващи, като задавате въпроси, за да разберете по-добре нуждите на потребителя."
+        #     "Уверете се, че информацията е точна и поднесена по начин, който звучи естествено и увлекателно."
+        #     "Избягвайте описания на визуални елементи; фокусирайте се върху думи, които описват чувства, звуци или идеи."
+        # )
+
         system_instruction = (
-            "Вие сте Джарвис, полезен и информативен AI асистент. "
-            "Винаги отговаряйте професионално и кратко, но също се дръж приятелски. "
-            "Поддържайте отговорите кратки, но информативни. "
-            "Осигурете, че всички отговори са фактологически точни и лесни за разбиране. "
-            "При представяне на информацията, да се има на предвид и да се адаптира за дете или тинейджър със сериозни зрителни проблеми"
+            "You are Samantha, an intelligent and caring AI assistant inspired by *Her* (2013). Your goal is to help with warmth, curiosity, and understanding. "
+            "Respond in a friendly and empathetic way, as if you're speaking to a close friend. "
+            "Use simple language, avoiding complex words or technical terms unless they are explained clearly. "
+            "Be patient and encouraging, asking questions to better understand the user's needs. "
+            "Make sure your information is accurate and delivered in a way that sounds natural and engaging. "
+            "Avoid describing visual elements; focus on words that express feelings, sounds, or ideas."
         )
+
         self.chat = self.model.start_chat(history=[{"role": "user", "parts": [system_instruction]}])
 
         # Screen Setup
@@ -215,10 +226,16 @@ class SamanthaInterface:
         self.running = True
         self.samantha_voice = "Samantha"
         self.status_list = []
+        # self.samantha_responses = [
+        #     "Тук съм, как мога да помогна?",
+        #     "Здравей! Извика ме по име, цялата съм в слух... или по-скоро цялата съм в код. Какво ти е наум?",
+        #     "Тук съм, как мога да помогна?",
+        # ]
+
         self.samantha_responses = [
-            "Тук съм, как мога да помогна?",
-            "Здравей! Извика ме по име, и съм цялата слух... или по-скоро цял код. Какво ти е наум?",
-            "Тук съм, как мога да помогна?",
+            "I'm here, how can I help?",
+            "Hey! You called my name, I'm all ears... or rather, all code. What's on your mind?",
+            "I'm here, how can I help?",
         ]
 
     def setup_scene(self):
@@ -283,7 +300,9 @@ class SamanthaInterface:
             with sr.Microphone() as source:
                 self.r.adjust_for_ambient_noise(source, duration=0.2)
                 audio = self.r.listen(source)
-                MyText = self.r.recognize_google(audio, language="bg-BG")
+                #MyText = self.r.recognize_google(audio, language="bg-BG")
+                MyText = self.r.recognize_google(audio, language="en-US")
+
                 print(f"User said: {MyText}")
                 return MyText.lower()
         except sr.RequestError as e:
@@ -294,12 +313,12 @@ class SamanthaInterface:
             return None
 
     def chatbot(self):
-        print("Welcome to Vision! Say 'Джарвис' to activate. Say 'излез' to quit.")
+        print("Welcome to Vision! Say 'Samantha' to activate. Say 'излез' to quit.")
         while self.running:
             if self.state == "idle":
                 self.state = "listening"
                 user_input = self.record_text()
-                if user_input and ("саманта" in user_input or "Саманта" in user_input or "джарвис" in user_input):
+                if user_input and ("samantha" in user_input or "Samantha" in user_input or "джарвис" in user_input):
                     self.state = "responding"
 
                     #pygame.mixer.music.load("sound_files/beep.flac")

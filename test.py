@@ -11,13 +11,6 @@ from elevenlabs import ElevenLabs, play
 import os
 import google.generativeai as genai
 
-# from jarvis_functions.gemini_vision_method import *
-# from jarvis_functions.call_phone_method import *
-# from jarvis_functions.whatsapp_messaging_method import *
-# from jarvis_functions.ocr_model_method import *
-# from jarvis_functions.shazam_method import *
-# from api_keys.api_keys import ELEVEN_LABS_API, GEMINI_KEY, SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET
-
 # Samantha Geometry and Utility Classes
 class PlaneGeometry:
     def __init__(self, width, height):
@@ -168,8 +161,8 @@ class Mesh:
         self.geometry.render()
         glPopMatrix()
 
-# Jarvis Interface with Samantha UI
-class JarvisInterface:
+# Jarvis Logic with Samantha UI
+class SamanthaInterface:
     def __init__(self):
         pygame.init()
         pygame.mixer.init()
@@ -180,6 +173,7 @@ class JarvisInterface:
         os.environ["GEMINI_API_KEY"] = "AIzaSyBzMQutGJnduWwKcTrmvAvP_QiTj8zaJ3I"
         genai.configure(api_key=os.environ["GEMINI_API_KEY"])
         self.model = genai.GenerativeModel(model_name="gemini-1.5-flash")
+
         system_instruction = (
             "Вие сте Джарвис, полезен и информативен AI асистент. "
             "Винаги отговаряйте професионално и кратко, но също се дръж приятелски. "
@@ -192,7 +186,7 @@ class JarvisInterface:
         # Screen Setup
         self.WIDTH, self.HEIGHT = 1920, 1080
         self.screen = pygame.display.set_mode((self.WIDTH, self.HEIGHT), pygame.RESIZABLE | pygame.OPENGL | pygame.DOUBLEBUF)
-        pygame.display.set_caption("Jarvis Interface")
+        pygame.display.set_caption("Samantha - OS1")
 
         # Colors
         self.WHITE = (255, 255, 255)
@@ -216,17 +210,15 @@ class JarvisInterface:
         self.group = Group()
         self.setup_scene()
 
-        # Jarvis State Variables
+        # Samantha State Variables
         self.state = "idle"  # idle, listening, processing, responding
         self.running = True
-        self.jarvis_voice = "Brian"
+        self.samantha_voice = "Samantha"
         self.status_list = []
-        self.jarvis_responses = [
+        self.samantha_responses = [
             "Тук съм, как мога да помогна?",
-            "Слушам, как мога да Ви асистирам?",
+            "Здравей! Извика ме по име, и съм цялата слух... или по-скоро цял код. Какво ти е наум?",
             "Тук съм, как мога да помогна?",
-            "С какво мога да Ви бъда полезен?",
-            "Слушам шефе, как да помогна?"
         ]
 
     def setup_scene(self):
@@ -292,7 +284,7 @@ class JarvisInterface:
                 self.r.adjust_for_ambient_noise(source, duration=0.2)
                 audio = self.r.listen(source)
                 MyText = self.r.recognize_google(audio, language="bg-BG")
-                print(f"You said: {MyText}")
+                print(f"User said: {MyText}")
                 return MyText.lower()
         except sr.RequestError as e:
             print(f"API Request Error: {e}")
@@ -307,35 +299,41 @@ class JarvisInterface:
             if self.state == "idle":
                 self.state = "listening"
                 user_input = self.record_text()
-                if user_input and ("джарвис" in user_input or "джарви" in user_input or "джервис" in user_input):
+                if user_input and ("саманта" in user_input or "Саманта" in user_input or "джарвис" in user_input):
                     self.state = "responding"
+
                     #pygame.mixer.music.load("sound_files/beep.flac")
                     #pygame.mixer.music.play()
                     print("✅ Wake word detected!")
-                    response = random.choice(self.jarvis_responses)
-                    audio = self.client.generate(text=response, voice=self.jarvis_voice)
+
+                    response = random.choice(self.samantha_responses)
+                    audio = self.client.generate(text=response, voice=self.samantha_voice)
                     play(audio)
-                    self.update_status("Jarvis activated")
+
+                    self.update_status("Samantha activated")
                 elif user_input == "излез":
                     print("Goodbye!")
-                    audio = self.client.generate(text="Goodbye!", voice=self.jarvis_voice)
+                    audio = self.client.generate(text="Goodbye!", voice=self.samantha_voice)
                     play(audio)
                     self.running = False
                     break
                 else:
                     self.state = "idle"
+
             elif self.state == "responding":
                 self.state = "listening"
                 user_input = self.record_text()
                 if user_input:
                     self.state = "processing"
                     print(f"Processing: {user_input}")
+
                     result = self.chat.send_message({"parts": [user_input]})
                     response_text = result.text
-                    print(f"Jarvis: {response_text}")
-                    self.update_status(f"Jarvis: {response_text[:50]}...")
+                    print(f"Samantha: {response_text}")
+
+                    #self.update_status(f"Jarvis: {response_text[:50]}...")
                     self.state = "responding"
-                    audio = self.client.generate(text=response_text, voice=self.jarvis_voice)
+                    audio = self.client.generate(text=response_text, voice=self.samantha_voice)
                     play(audio)
                     self.state = "idle"
                 else:
@@ -414,5 +412,5 @@ class JarvisInterface:
         pygame.quit()
 
 if __name__ == "__main__":
-    app = JarvisInterface()
+    app = SamanthaInterface()
     app.run()

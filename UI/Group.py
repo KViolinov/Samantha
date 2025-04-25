@@ -15,8 +15,6 @@ class Group:
         glPushMatrix()
         glTranslatef(self.position_x, 0, self.position_z)
         glRotatef(self.rotation_y * 180 / math.pi, 0, 1, 0)
-
         for child in self.children:
             child.render()
-
         glPopMatrix()

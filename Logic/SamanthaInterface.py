@@ -11,166 +11,28 @@ from elevenlabs import ElevenLabs, play
 import os
 import google.generativeai as genai
 
-# Samantha UI and Utility Classes
-class PlaneGeometry:
-    def __init__(self, width, height):
-        self.width = width
-        self.height = height
+from UI.Group import Group
+from UI.PlaneGeometry import PlaneGeometry
+from UI.Point3D import Point3D
+from UI.Vector3D import Vector3D
+from UI.TubeGeometry import TubeGeometry
+from UI.RingGeometry import RingGeometry
+from UI.Mesh import Mesh
+from UI.Material import Material
+from UI.CustomCurve import CustomCurve
 
-    def render(self):
-        half_width = self.width / 2
-        half_height = self.height / 2
-        glBegin(GL_QUADS)
-        glVertex3f(-half_width, -half_height, 0)
-        glVertex3f(half_width, -half_height, 0)
-        glVertex3f(half_width, half_height, 0)
-        glVertex3f(-half_width, half_height, 0)
-        glEnd()
-
-class Point3D:
-    def __init__(self, x=0, y=0, z=0):
-        self.x = x
-        self.y = y
-        self.z = z
-
-class RingGeometry:
-    def __init__(self, inner_radius, outer_radius, segments):
-        self.inner_radius = inner_radius
-        self.outer_radius = outer_radius
-        self.segments = segments
-
-    def render(self):
-        glBegin(GL_QUADS)
-        for i in range(self.segments):
-            angle1 = i * 2 * math.pi / self.segments
-            angle2 = (i + 1) * 2 * math.pi / self.segments
-            cos1, sin1 = math.cos(angle1), math.sin(angle1)
-            cos2, sin2 = math.cos(angle2), math.sin(angle2)
-            glVertex3f(self.inner_radius * cos1, self.inner_radius * sin1, 0)
-            glVertex3f(self.inner_radius * cos2, self.inner_radius * sin2, 0)
-            glVertex3f(self.outer_radius * cos2, self.outer_radius * sin2, 0)
-            glVertex3f(self.outer_radius * cos1, self.outer_radius * sin1, 0)
-        glEnd()
-
-class TubeGeometry:
-    def __init__(self, curve, segments, radius, radial_segments, closed):
-        self.curve = curve
-        self.segments = segments
-        self.radius = radius
-        self.radial_segments = radial_segments
-        self.closed = closed
-        self.vertices = []
-        self.generate()
-
-    def generate(self):
-        self.vertices = []
-        for i in range(self.segments + 1):
-            t = i / self.segments
-            if self.closed and i == self.segments:
-                t = 0
-            center_point = self.curve.get_point(t)
-            for j in range(self.radial_segments):
-                angle = j * 2 * math.pi / self.radial_segments
-                dx = self.radius * math.cos(angle)
-                dy = self.radius * math.sin(angle)
-                self.vertices.append((
-                    center_point.x + dx,
-                    center_point.y + dy,
-                    center_point.z
-                ))
-
-    def render(self):
-        glBegin(GL_TRIANGLES)
-        for i in range(self.segments):
-            for j in range(self.radial_segments):
-                idx1 = i * self.radial_segments + j
-                idx2 = i * self.radial_segments + (j + 1) % self.radial_segments
-                idx3 = (i + 1) * self.radial_segments + j
-                idx4 = (i + 1) * self.radial_segments + (j + 1) % self.radial_segments
-                glVertex3f(*self.vertices[idx1])
-                glVertex3f(*self.vertices[idx2])
-                glVertex3f(*self.vertices[idx3])
-                glVertex3f(*self.vertices[idx2])
-                glVertex3f(*self.vertices[idx4])
-                glVertex3f(*self.vertices[idx3])
-        glEnd()
-
-class Vector3D:
-    def __init__(self, x=0, y=0, z=0):
-        self.x = x
-        self.y = y
-        self.z = z
-
-class CustomCurve:
-    def __init__(self, length, radius):
-        self.length = length
-        self.radius = radius
-        self.pi2 = math.pi * 2
-
-    def get_point(self, t):
-        x = self.length * math.sin(self.pi2 * t)
-        y = self.radius * math.cos(self.pi2 * 3 * t)
-        t_val = t % 0.25 / 0.25
-        t_val = t % 0.25 - (2 * (1 - t_val) * t_val * -0.0185 + t_val * t_val * 0.25)
-        if math.floor(t / 0.25) == 0 or math.floor(t / 0.25) == 2:
-            t_val *= -1
-        z = self.radius * math.sin(self.pi2 * 2 * (t - t_val))
-        return Point3D(x, y, z)
-
-class Group:
-    def __init__(self):
-        self.rotation_y = 0
-        self.position_z = 0
-        self.position_x = 0
-        self.children = []
-
-    def add(self, obj):
-        self.children.append(obj)
-
-    def render(self):
-        glPushMatrix()
-        glTranslatef(self.position_x, 0, self.position_z)
-        glRotatef(self.rotation_y * 180 / math.pi, 0, 1, 0)
-        for child in self.children:
-            child.render()
-        glPopMatrix()
-
-class Material:
-    def __init__(self, color=(1.0, 1.0, 1.0), opacity=1.0, transparent=False):
-        self.color = color
-        self.opacity = opacity
-        self.transparent = transparent
-
-class Mesh:
-    def __init__(self, geometry, material):
-        self.geometry = geometry
-        self.material = material
-        self.rotation_x = 0
-        self.rotation_y = 0
-        self.position = Point3D(0, 0, 0)
-        self.scale = Point3D(1, 1, 1)
-
-    def render(self):
-        glPushMatrix()
-        glTranslatef(self.position.x, self.position.y, self.position.z)
-        glRotatef(self.rotation_x * 180 / math.pi, 1, 0, 0)
-        glRotatef(self.rotation_y * 180 / math.pi, 0, 1, 0)
-        glScalef(self.scale.x, self.scale.y, self.scale.z)
-        color = self.material.color
-        glColor4f(color[0], color[1], color[2], self.material.opacity)
-        self.geometry.render()
-        glPopMatrix()
+from API_keys import ElevenLabsAPI, GeminiAPI
 
 # Jarvis Logic with Samantha UI
 class SamanthaInterface:
     def __init__(self):
         pygame.init()
         pygame.mixer.init()
-        self.client = ElevenLabs(api_key="sk_0dfe95fad3b8b17af02ce8d21ecf0fb1c5c63e97b2688707")
+        self.client = ElevenLabs(api_key=ElevenLabsAPI)
         self.r = sr.Recognizer()
 
         # Gemini Setup
-        os.environ["GEMINI_API_KEY"] = "AIzaSyBzMQutGJnduWwKcTrmvAvP_QiTj8zaJ3I"
+        os.environ["GEMINI_API_KEY"] = GeminiAPI
         genai.configure(api_key=os.environ["GEMINI_API_KEY"])
         self.model = genai.GenerativeModel(model_name="gemini-1.5-flash")
 
@@ -226,6 +88,7 @@ class SamanthaInterface:
         self.running = True
         self.samantha_voice = "Samantha"
         self.status_list = []
+
         # self.samantha_responses = [
         #     "Тук съм, как мога да помогна?",
         #     "Здравей! Извика ме по име, цялата съм в слух... или по-скоро цялата съм в код. Какво ти е наум?",
@@ -429,7 +292,3 @@ class SamanthaInterface:
             self.mesh.rotation_x += self.rotatevalue + self.acceleration
 
         pygame.quit()
-
-if __name__ == "__main__":
-    app = SamanthaInterface()
-    app.run()

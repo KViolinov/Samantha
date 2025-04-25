@@ -1,5 +1,5 @@
 from OpenGL.GL import *
-from Geometry.Point3D import Point3D
+from UI.Point3D import Point3D
 import math
 
 class Mesh:

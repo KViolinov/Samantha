@@ -25,6 +25,21 @@ Whether you're here to build a conversational AI, experiment with natural langua
 - Dependencies listed in `requirements.txt` (e.g., NLTK, TensorFlow, etc.)
 - A passion for AI and human connection
 
+
+## License
+
+This project is licensed under the MIT License. See the LICENSE file for details.
+
+# Inspiration
+
+Samantha - OS1 is inspired by the visionary AI in Her, created by Spike Jonze. The project explores the boundaries of technology and emotion, asking: Can code feel? Can it connect? Join us in finding out.
+
+# Contact
+
+For questions, ideas, or just to chat like Samantha would, reach out via GitHub Issues or email at your.email@example.com.
+
+
+
 ### Installation
 
 ```bash
@@ -40,3 +55,4 @@ python setup.py
 
 # Start Samantha
 python main.py
+"I’m here, ready to dive into whatever you’re thinking about. What’s the vibe today?" — Samantha
